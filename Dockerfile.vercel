@@ -7,6 +7,4 @@ WORKDIR /app
 COPY public ./public
 COPY src ./src
 
-EXPOSE 3000
-
-CMD ["sh", "-c", "php -S 0.0.0.0:${PORT:-3000} -t /app/public /app/public/index.php"]
+CMD ["sh", "-c", "php -S 0.0.0.0:${PORT:-80} -t /app/public"]
