@@ -1,7 +1,5 @@
 <?php
 declare(strict_types=1);
-session_start();
-
 $dbUrl = getenv('DATABASE_URL') ?: '';
 if (!$dbUrl) {
     http_response_code(500);
@@ -28,7 +26,8 @@ function init(): void {
         "CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, username VARCHAR(50) UNIQUE NOT NULL, email VARCHAR(150) UNIQUE NOT NULL, password_hash TEXT NOT NULL, balance NUMERIC(14,2) DEFAULT 0, role VARCHAR(20) DEFAULT 'user', created_at TIMESTAMPTZ DEFAULT NOW())",
         "CREATE TABLE IF NOT EXISTS products (id SERIAL PRIMARY KEY, title VARCHAR(160) NOT NULL, description TEXT, price NUMERIC(14,2) NOT NULL, category VARCHAR(80) NOT NULL, image TEXT, status VARCHAR(20) DEFAULT 'ready', created_at TIMESTAMPTZ DEFAULT NOW())",
         "CREATE TABLE IF NOT EXISTS transactions (id SERIAL PRIMARY KEY, user_id INT REFERENCES users(id), product_id INT REFERENCES products(id), amount NUMERIC(14,2) NOT NULL, type VARCHAR(30) NOT NULL, status VARCHAR(30) DEFAULT 'pending', created_at TIMESTAMPTZ DEFAULT NOW())",
-        "CREATE TABLE IF NOT EXISTS topups (id SERIAL PRIMARY KEY, user_id INT REFERENCES users(id), amount NUMERIC(14,2) NOT NULL, status VARCHAR(30) DEFAULT 'pending', note TEXT, created_at TIMESTAMPTZ DEFAULT NOW())"
+        "CREATE TABLE IF NOT EXISTS topups (id SERIAL PRIMARY KEY, user_id INT REFERENCES users(id), amount NUMERIC(14,2) NOT NULL, status VARCHAR(30) DEFAULT 'pending', note TEXT, created_at TIMESTAMPTZ DEFAULT NOW())",
+        "CREATE TABLE IF NOT EXISTS auth_tokens (id BIGSERIAL PRIMARY KEY, user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, token_hash CHAR(64) UNIQUE NOT NULL, created_at TIMESTAMPTZ DEFAULT NOW(), expires_at TIMESTAMPTZ NOT NULL)"
     ];
 
     foreach ($sql as $q) {
@@ -55,15 +54,97 @@ function init(): void {
     db()->exec("UPDATE products SET status = COALESCE(NULLIF(status,''),'ready') WHERE status IS NULL OR status=''");
 }
 init();
+// Clean up expired login tokens occasionally; harmless if none exist.
+try { db()->exec("DELETE FROM auth_tokens WHERE expires_at <= NOW()"); } catch (Throwable $e) {}
 
 function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
-function user(): ?array {
-    if (empty($_SESSION['uid'])) return null;
-    $s=db()->prepare("SELECT id, username, email, password_hash, balance, role, created_at FROM users WHERE id=?"); $s->execute([$_SESSION['uid']]);
-    return $s->fetch() ?: null;
+
+function setAuthCookie(string $token): void {
+    setcookie('yamzz_auth', $token, [
+        'expires' => time() + 60 * 60 * 24 * 30,
+        'path' => '/',
+        'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
 }
-function requireLogin(): array { $u=user(); if(!$u){ header("Location: /?page=login"); exit; } return $u; }
-function requireAdmin(): array { $u=requireLogin(); if($u['role']!=='admin'){ http_response_code(403); exit("Forbidden"); } return $u; }
+
+function clearAuthCookie(): void {
+    setcookie('yamzz_auth', '', [
+        'expires' => time() - 3600,
+        'path' => '/',
+        'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+}
+
+function user(): ?array {
+    $token = $_COOKIE['yamzz_auth'] ?? '';
+    if ($token === '') return null;
+
+    $hash = hash('sha256', $token);
+    $s = db()->prepare("
+        SELECT u.id, u.username, u.email, u.password_hash, u.balance, u.role, u.created_at
+        FROM auth_tokens a
+        JOIN users u ON u.id = a.user_id
+        WHERE a.token_hash = ? AND a.expires_at > NOW()
+        LIMIT 1
+    ");
+    $s->execute([$hash]);
+    $u = $s->fetch();
+
+    if (!$u) {
+        clearAuthCookie();
+        return null;
+    }
+
+    return $u;
+}
+
+function loginUser(int $userId): void {
+    $token = bin2hex(random_bytes(32));
+    $hash = hash('sha256', $token);
+
+    // Remove expired tokens for this user and issue a fresh 30-day token.
+    db()->prepare("DELETE FROM auth_tokens WHERE user_id=? AND expires_at <= NOW()")
+        ->execute([$userId]);
+
+    db()->prepare("
+        INSERT INTO auth_tokens(user_id, token_hash, expires_at)
+        VALUES(?, ?, NOW() + INTERVAL '30 days')
+    ")->execute([$userId, $hash]);
+
+    setAuthCookie($token);
+}
+
+function logoutUser(): void {
+    $token = $_COOKIE['yamzz_auth'] ?? '';
+    if ($token !== '') {
+        db()->prepare("DELETE FROM auth_tokens WHERE token_hash=?")
+            ->execute([hash('sha256', $token)]);
+    }
+    clearAuthCookie();
+}
+
+function requireLogin(): array {
+    $u = user();
+    if (!$u) {
+        header("Location: /?page=login");
+        exit;
+    }
+    return $u;
+}
+
+function requireAdmin(): array {
+    $u = requireLogin();
+    if ($u['role'] !== 'admin') {
+        http_response_code(403);
+        exit("Forbidden");
+    }
+    return $u;
+}
+
 function money($n): string { return 'Rp '.number_format((float)$n,0,',','.'); }
 
 $action=$_POST['action']??'';
@@ -75,11 +156,22 @@ if($action==='register'){
     }catch(Throwable $e){ $error="Username/email sudah digunakan."; }
 }
 if($action==='login'){
-    $s=db()->prepare("SELECT id, username, email, password_hash, balance, role, created_at FROM users WHERE email=?"); $s->execute([trim($_POST['email'])]); $u=$s->fetch();
-    if($u && password_verify($_POST['password'],$u['password_hash'])){ $_SESSION['uid']=$u['id']; header("Location: /"); exit; }
+    $s=db()->prepare("SELECT id, username, email, password_hash, balance, role, created_at FROM users WHERE email=?");
+    $s->execute([trim($_POST['email'])]);
+    $u=$s->fetch();
+
+    if($u && password_verify($_POST['password'],$u['password_hash'])){
+        loginUser((int)$u['id']);
+        header("Location: /");
+        exit;
+    }
     $error="Email atau password salah.";
 }
-if($action==='logout'){ session_destroy(); header("Location: /"); exit; }
+if($action==='logout'){
+    logoutUser();
+    header("Location: /");
+    exit;
+}
 if($action==='topup'){
     $u=requireLogin(); $amt=max(1,(float)$_POST['amount']);
     $s=db()->prepare("INSERT INTO topups(user_id,amount,note) VALUES(?,?,?)");
@@ -132,7 +224,7 @@ if ($page === 'admin') {
 <title>Yamzz Market V2</title><link rel="stylesheet" href="/style.css"></head><body>
 <header><a class="brand" href="/">YAMZZ <span>MARKET</span></a><nav>
 <a href="/">Beranda</a><a href="/?page=transactions">Transaksi</a>
-<?php if($u): ?><a href="/?page=account">Akun (<?=money($u['balance'])?>)</a><?php if($u['role']==='admin'): ?><a href="/?page=admin">Admin</a><?php endif; ?><form method="post" class="inline"><button name="action" value="logout">Keluar</button></form>
+<?php if($u): ?><a href="/?page=account">Akun (<?=money($u['balance'])?>)</a><?php if(($u['role'] ?? 'user')==='admin'): ?><a href="/?page=admin">Admin</a><?php endif; ?><form method="post" class="inline"><button name="action" value="logout">Keluar</button></form>
 <?php else: ?><a href="/?page=login">Login</a><?php endif; ?></nav></header>
 <main>
 <?php if(!empty($error)): ?><div class="alert"><?=h($error)?></div><?php endif; ?>
