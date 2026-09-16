@@ -2,6 +2,7 @@ const $ = id => document.getElementById(id);
 
 let merchant;
 
+
 // =========================================================
 // AUTH
 // =========================================================
@@ -10,7 +11,9 @@ function getApiKey() {
     return localStorage.getItem('merchant_api_key');
 }
 
+
 function saveMerchant(data) {
+
     if (data.merchant) {
         localStorage.setItem(
             'merchant',
@@ -26,17 +29,24 @@ function saveMerchant(data) {
     }
 }
 
+
 function getMerchant() {
+
     try {
+
         return JSON.parse(
             localStorage.getItem('merchant') || 'null'
         );
+
     } catch {
+
         return null;
     }
 }
 
+
 function logout() {
+
     localStorage.removeItem('merchant');
     localStorage.removeItem('merchant_api_key');
 
@@ -57,33 +67,67 @@ async function get(url, opt = {}) {
         throw Error('Belum login');
     }
 
+
     const options = {
         ...opt,
+
         headers: {
             ...(opt.headers || {}),
-            'Authorization': `Bearer ${apiKey}`
+
+            'Authorization':
+                `Bearer ${apiKey}`
         }
     };
 
-    const r = await fetch(url, options);
+
+    const r = await fetch(
+        url,
+        options
+    );
+
 
     let d;
 
     try {
+
         d = await r.json();
+
     } catch {
-        throw Error('Response server tidak valid');
+
+        throw Error(
+            'Response server tidak valid'
+        );
     }
 
-    // Token sudah tidak valid
+
+    // Token tidak valid
     if (r.status === 401) {
-        logout();
-        throw Error(d.error || 'Login sudah tidak valid');
+
+        localStorage.removeItem(
+            'merchant'
+        );
+
+        localStorage.removeItem(
+            'merchant_api_key'
+        );
+
+        location.href = '/login.html';
+
+        throw Error(
+            d.error ||
+            'Login sudah tidak valid'
+        );
     }
+
 
     if (!r.ok) {
-        throw Error(d.error || 'Request failed');
+
+        throw Error(
+            d.error ||
+            'Request failed'
+        );
     }
+
 
     return d;
 }
@@ -94,10 +138,15 @@ async function get(url, opt = {}) {
 // =========================================================
 
 function money(v) {
-    return 'Rp' + Number(v || 0).toLocaleString('id-ID');
+
+    return 'Rp' +
+        Number(v || 0)
+            .toLocaleString('id-ID');
 }
 
+
 function status(s) {
+
     const c =
         s === 'paid'
             ? 'paid'
@@ -107,7 +156,12 @@ function status(s) {
             ? 'expired'
             : 'cancel';
 
-    return `<span class="pill ${c}">${s}</span>`;
+
+    return `
+        <span class="pill ${c}">
+            ${s}
+        </span>
+    `;
 }
 
 
@@ -119,52 +173,125 @@ async function load() {
 
     try {
 
-        const d = await get('/api/me');
+        const d =
+            await get('/api/me');
 
-        merchant = d.merchant;
 
-        // Simpan data merchant terbaru
+        merchant =
+            d.merchant;
+
+
+        // Simpan merchant terbaru
         saveMerchant({
-            merchant: d.merchant,
-            api_key: d.api_key
+
+            merchant:
+                d.merchant,
+
+            api_key:
+                d.api_key ||
+                getApiKey()
+
         });
 
-        $('storeTop').textContent =
-            merchant.name || merchant.email;
 
-        $('me').innerHTML = `
-            <b>${merchant.name || ''}</b><br>
-            ${merchant.email || ''}<br>
-            <span style="color:#777">
-                QRIS:
-                ${merchant.qris_name || 'belum disimpan'}
-                ${merchant.qris_city || ''}
-            </span>
-        `;
+        // Nama merchant
+        if ($('storeTop')) {
 
-        $('key').textContent =
-            merchant.api_key || getApiKey() || 'API key tidak tersedia';
-
-        $('qrpayload').value =
-            merchant.qris_payload || '';
-
-        if (merchant.qris_payload) {
-            renderQR(merchant.qris_payload);
+            $('storeTop').textContent =
+                merchant.name ||
+                merchant.email ||
+                'Merchant';
         }
+
+
+        // Informasi merchant
+        if ($('me')) {
+
+            $('me').innerHTML = `
+                <b>
+                    ${merchant.name || ''}
+                </b>
+                <br>
+
+                ${merchant.email || ''}
+
+                <br>
+
+                <span style="color:#777">
+                    QRIS:
+                    ${merchant.qris_name || 'belum disimpan'}
+                    ${merchant.qris_city || ''}
+                </span>
+            `;
+        }
+
+
+        // API key
+        if ($('key')) {
+
+            $('key').textContent =
+                merchant.api_key ||
+                getApiKey() ||
+                'API key tidak tersedia';
+        }
+
+
+        // QR payload
+        if ($('qrpayload')) {
+
+            $('qrpayload').value =
+                merchant.qris_payload || '';
+        }
+
+
+        // Render QR yang sudah tersimpan
+        if (
+            merchant.qris_payload &&
+            $('qrPreview')
+        ) {
+
+            renderQR(
+                merchant.qris_payload
+            );
+        }
+
 
         await Promise.all([
             loadProducts(),
             loadTx()
         ]);
 
+
     } catch (e) {
 
-        console.error('LOAD ERROR:', e);
+        console.error(
+            'LOAD ERROR:',
+            e
+        );
 
-        // get() sudah menangani 401
+
+        /*
+         * Jangan langsung logout untuk
+         * semua jenis error.
+         *
+         * Kalau API key masih ada,
+         * tampilkan error supaya mudah
+         * mengetahui endpoint mana yang
+         * bermasalah.
+         */
+
         if (getApiKey()) {
+
+            console.error(
+                'Dashboard error:',
+                e.message
+            );
+
             alert(e.message);
+
+            return;
         }
+
 
         logout();
     }
@@ -172,16 +299,36 @@ async function load() {
 
 
 // =========================================================
-// QR
+// QR RENDER
 // =========================================================
 
 function renderQR(data) {
 
-    const canvas = document.createElement('canvas');
+    if (!data) {
+        return;
+    }
 
-    $('qrPreview').innerHTML = '';
 
-    $('qrPreview').appendChild(canvas);
+    const preview =
+        $('qrPreview');
+
+
+    if (!preview) {
+        return;
+    }
+
+
+    const canvas =
+        document.createElement('canvas');
+
+
+    preview.innerHTML = '';
+
+
+    preview.appendChild(
+        canvas
+    );
+
 
     QRCode.toCanvas(
         canvas,
@@ -190,7 +337,16 @@ function renderQR(data) {
             width: 145,
             margin: 1
         },
-        () => {}
+        error => {
+
+            if (error) {
+
+                console.error(
+                    'QR RENDER ERROR:',
+                    error
+                );
+            }
+        }
     );
 }
 
@@ -201,23 +357,45 @@ function renderQR(data) {
 
 async function loadProducts() {
 
-    const d = await get('/api/products');
+    const d =
+        await get('/api/products');
 
-    $('sProducts').textContent =
-        d.products.length;
+
+    const products =
+        d.products || [];
+
+
+    if ($('sProducts')) {
+
+        $('sProducts').textContent =
+            products.length;
+    }
+
+
+    if (!$('productsList')) {
+        return;
+    }
+
 
     $('productsList').innerHTML =
-        d.products.map(p => `
+        products.map(p => `
+
             <div class="product-item">
+
                 <div>
+
                     <b style="font-size:12px">
                         ${p.name}
                     </b>
+
                     <br>
+
                     <small>
                         ${money(p.price)}
                     </small>
+
                 </div>
+
 
                 <button
                     class="mini danger"
@@ -225,9 +403,18 @@ async function loadProducts() {
                 >
                     Hapus
                 </button>
+
             </div>
+
         `).join('') ||
-        '<p style="font-size:12px;color:#888">Belum ada produk.</p>';
+
+        `
+            <p
+                style="font-size:12px;color:#888"
+            >
+                Belum ada produk.
+            </p>
+        `;
 }
 
 
@@ -238,15 +425,20 @@ async function delProduct(id) {
         await get(
             '/api/products?id=' +
             encodeURIComponent(id),
+
             {
                 method: 'DELETE'
             }
         );
 
-        loadProducts();
+
+        await loadProducts();
 
     } catch (e) {
-        alert(e.message);
+
+        alert(
+            e.message
+        );
     }
 }
 
@@ -257,45 +449,91 @@ async function delProduct(id) {
 
 async function loadTx() {
 
-    const d = await get('/api/transactions');
+    const d =
+        await get('/api/transactions');
 
-    const t = d.transactions || [];
 
-    $('sTotal').textContent = t.length;
+    const t =
+        d.transactions || [];
 
-    $('sPaid').textContent =
-        t.filter(x => x.status === 'paid').length;
 
-    $('sPending').textContent =
-        t.filter(x => x.status === 'pending').length;
+    if ($('sTotal')) {
+
+        $('sTotal').textContent =
+            t.length;
+    }
+
+
+    if ($('sPaid')) {
+
+        $('sPaid').textContent =
+            t.filter(
+                x => x.status === 'paid'
+            ).length;
+    }
+
+
+    if ($('sPending')) {
+
+        $('sPending').textContent =
+            t.filter(
+                x => x.status === 'pending'
+            ).length;
+    }
+
+
+    if (!$('tx')) {
+        return;
+    }
+
 
     $('tx').innerHTML =
+
         t.map(x => `
+
             <tr>
+
                 <td>
-                    <b>${x.order_id}</b>
+                    <b>
+                        ${x.order_id}
+                    </b>
                 </td>
+
 
                 <td>
                     ${money(x.amount)}
                 </td>
 
+
                 <td>
                     ${status(x.status)}
                 </td>
 
+
                 <td>
-                    ${new Date(
-                        x.created_at
-                    ).toLocaleString('id-ID')}
+                    ${
+                        new Date(
+                            x.created_at
+                        ).toLocaleString(
+                            'id-ID'
+                        )
+                    }
                 </td>
+
             </tr>
+
         `).join('') ||
+
         `
             <tr>
-                <td colspan="4" style="color:#888">
+
+                <td
+                    colspan="4"
+                    style="color:#888"
+                >
                     Belum ada transaksi.
                 </td>
+
             </tr>
         `;
 }
@@ -305,168 +543,398 @@ async function loadTx() {
 // ADD PRODUCT
 // =========================================================
 
-$('pf').onsubmit = async e => {
+if ($('pf')) {
 
-    e.preventDefault();
+    $('pf').onsubmit =
+        async e => {
 
-    try {
+            e.preventDefault();
 
-        await get('/api/products', {
-            method: 'POST',
 
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            try {
 
-            body: JSON.stringify(
-                Object.fromEntries(
-                    new FormData($('pf'))
-                )
-            )
-        });
+                await get(
+                    '/api/products',
+                    {
+                        method: 'POST',
 
-        $('pf').reset();
+                        headers: {
+                            'Content-Type':
+                                'application/json'
+                        },
 
-        loadProducts();
+                        body:
+                            JSON.stringify(
+                                Object.fromEntries(
+                                    new FormData(
+                                        $('pf')
+                                    )
+                                )
+                            )
+                    }
+                );
 
-    } catch (e) {
 
-        alert(e.message);
-    }
-};
+                $('pf').reset();
+
+
+                await loadProducts();
+
+
+            } catch (e) {
+
+                alert(
+                    e.message
+                );
+            }
+        };
+}
 
 
 // =========================================================
 // SAVE QRIS
 // =========================================================
 
-$('save').onclick = async () => {
+if ($('save')) {
 
-    try {
+    $('save').onclick =
+        async () => {
 
-        const d = await get('/api/qris-save', {
+            try {
 
-            method: 'POST',
+                const payload =
+                    String(
+                        $('qrpayload').value ||
+                        ''
+                    ).trim();
 
-            headers: {
-                'Content-Type': 'application/json'
-            },
 
-            body: JSON.stringify({
-                qris_payload:
-                    $('qrpayload').value
-            })
-        });
+                if (!payload) {
 
-        $('qrinfo').textContent =
-            JSON.stringify(
-                d.qris,
-                null,
-                2
-            );
+                    return alert(
+                        'QRIS payload masih kosong.'
+                    );
+                }
 
-        renderQR(
-            $('qrpayload').value
-        );
 
-        await load();
+                console.log(
+                    'SAVING QRIS PAYLOAD:',
+                    payload
+                );
 
-    } catch (e) {
 
-        alert(e.message);
-    }
-};
+                const d =
+                    await get(
+                        '/api/qris-save',
+                        {
+                            method: 'POST',
+
+                            headers: {
+                                'Content-Type':
+                                    'application/json'
+                            },
+
+                            body:
+                                JSON.stringify({
+                                    qris_payload:
+                                        payload
+                                })
+                        }
+                    );
+
+
+                if ($('qrinfo')) {
+
+                    $('qrinfo').textContent =
+                        JSON.stringify(
+                            d.qris,
+                            null,
+                            2
+                        );
+                }
+
+
+                renderQR(
+                    payload
+                );
+
+
+                alert(
+                    'QRIS berhasil disimpan.'
+                );
+
+
+                await load();
+
+
+            } catch (e) {
+
+                console.error(
+                    'SAVE QRIS ERROR:',
+                    e
+                );
+
+                alert(
+                    e.message
+                );
+            }
+        };
+}
 
 
 // =========================================================
 // DECODE QR IMAGE
 // =========================================================
 
-$('decode').onclick = () => {
+if ($('decode')) {
 
-    const f = $('qrfile').files[0];
+    $('decode').onclick =
+        () => {
 
-    if (!f) {
-        return alert(
-            'Pilih gambar QRIS dulu'
-        );
-    }
+            const f =
+                $('qrfile').files[0];
 
-    const img = new Image();
 
-    const c = document.createElement('canvas');
+            if (!f) {
 
-    const x = c.getContext('2d');
-
-    img.onload = () => {
-
-        const scale =
-            Math.min(
-                1600 / img.width,
-                1600 / img.height,
-                1
-            );
-
-        c.width =
-            img.width * scale;
-
-        c.height =
-            img.height * scale;
-
-        x.drawImage(
-            img,
-            0,
-            0,
-            c.width,
-            c.height
-        );
-
-        const d =
-            x.getImageData(
-                0,
-                0,
-                c.width,
-                c.height
-            );
-
-        const r = jsQR(
-            d.data,
-            d.width,
-            d.height,
-            {
-                inversionAttempts:
-                    'attemptBoth'
+                return alert(
+                    'Pilih gambar QRIS dulu.'
+                );
             }
-        );
 
-        if (!r) {
-            return alert(
-                'QR tidak terbaca. Coba gambar yang lebih jelas.'
-            );
-        }
 
-        $('qrpayload').value =
-            r.data;
+            const img =
+                new Image();
 
-        renderQR(r.data);
 
-        alert(
-            'QR berhasil dibaca. Klik Simpan QRIS.'
-        );
-    };
+            const c =
+                document.createElement(
+                    'canvas'
+                );
 
-    img.src =
-        URL.createObjectURL(f);
-};
+
+            const x =
+                c.getContext(
+                    '2d',
+                    {
+                        willReadFrequently:
+                            true
+                    }
+                );
+
+
+            if (!x) {
+
+                return alert(
+                    'Browser tidak mendukung pembacaan gambar.'
+                );
+            }
+
+
+            img.onload =
+                () => {
+
+                    try {
+
+                        /*
+                         * Batasi maksimal
+                         * 1600px agar proses
+                         * tidak terlalu berat.
+                         */
+
+                        const scale =
+                            Math.min(
+                                1600 / img.width,
+                                1600 / img.height,
+                                1
+                            );
+
+
+                        c.width =
+                            Math.round(
+                                img.width *
+                                scale
+                            );
+
+
+                        c.height =
+                            Math.round(
+                                img.height *
+                                scale
+                            );
+
+
+                        x.drawImage(
+                            img,
+                            0,
+                            0,
+                            c.width,
+                            c.height
+                        );
+
+
+                        const imageData =
+                            x.getImageData(
+                                0,
+                                0,
+                                c.width,
+                                c.height
+                            );
+
+
+                        const r =
+                            jsQR(
+                                imageData.data,
+                                imageData.width,
+                                imageData.height,
+                                {
+                                    inversionAttempts:
+                                        'attemptBoth'
+                                }
+                            );
+
+
+                        if (!r) {
+
+                            return alert(
+                                'QR tidak terbaca.\n\n' +
+                                'Coba gunakan screenshot/foto QRIS yang lebih jelas dan pastikan seluruh QR terlihat.'
+                            );
+                        }
+
+
+                        /*
+                         * Payload hasil scan
+                         */
+
+                        const payload =
+                            String(
+                                r.data || ''
+                            ).trim();
+
+
+                        console.log(
+                            '================================='
+                        );
+
+                        console.log(
+                            'QRIS PAYLOAD:',
+                            payload
+                        );
+
+                        console.log(
+                            'QRIS PAYLOAD LENGTH:',
+                            payload.length
+                        );
+
+                        console.log(
+                            'QRIS TYPE:',
+                            typeof payload
+                        );
+
+                        console.log(
+                            '================================='
+                        );
+
+
+                        if (!payload) {
+
+                            return alert(
+                                'QR berhasil dibaca tetapi payload kosong.'
+                            );
+                        }
+
+
+                        if (
+                            payload.length < 20
+                        ) {
+
+                            console.warn(
+                                'Payload QR terlalu pendek:',
+                                payload
+                            );
+
+                            return alert(
+                                'QR terbaca, tetapi data QR terlalu pendek untuk QRIS.\n\n' +
+                                'Panjang data: ' +
+                                payload.length +
+                                ' karakter.'
+                            );
+                        }
+
+
+                        /*
+                         * Masukkan payload
+                         * ke textarea/input.
+                         */
+
+                        if ($('qrpayload')) {
+
+                            $('qrpayload').value =
+                                payload;
+                        }
+
+
+                        /*
+                         * Render ulang QR
+                         */
+
+                        renderQR(
+                            payload
+                        );
+
+
+                        alert(
+                            'QR berhasil dibaca.\n\n' +
+                            'Panjang payload: ' +
+                            payload.length +
+                            ' karakter.\n\n' +
+                            'Silakan klik "Simpan QRIS".'
+                        );
+
+
+                    } catch (error) {
+
+                        console.error(
+                            'QR DECODE ERROR:',
+                            error
+                        );
+
+                        alert(
+                            'Terjadi kesalahan saat membaca QR.'
+                        );
+                    }
+
+                };
+
+
+            img.onerror =
+                () => {
+
+                    alert(
+                        'Gambar QRIS gagal dibuka.'
+                    );
+                };
+
+
+            img.src =
+                URL.createObjectURL(f);
+        };
+}
 
 
 // =========================================================
 // LOGOUT
 // =========================================================
 
-$('logout').onclick = () => {
-    logout();
-};
+if ($('logout')) {
+
+    $('logout').onclick =
+        () => {
+
+            logout();
+        };
+}
 
 
 // =========================================================
