@@ -29,7 +29,12 @@ export default async function handler(
     }
 
     const result = await sql`
-      SELECT id, email, name, password_hash, api_key
+      SELECT
+        id,
+        email,
+        name,
+        password_hash,
+        api_key
       FROM merchants
       WHERE email = ${email}
       LIMIT 1
@@ -44,7 +49,6 @@ export default async function handler(
 
     const merchant = result.rows[0];
 
-    // Cocokkan password input dengan bcrypt hash
     const validPassword = await compare(
       password,
       merchant.password_hash
@@ -57,19 +61,16 @@ export default async function handler(
       });
     }
 
-    /*
-     * Tidak menggunakan session/cookie.
-     * Credential dikirim ke frontend dan disimpan
-     * oleh frontend menggunakan localStorage.
-     */
-
     return json(res, 200, {
       success: true,
+
       merchant: {
         id: merchant.id,
         name: merchant.name,
-        email: merchant.email
+        email: merchant.email,
+        api_key: merchant.api_key
       },
+
       api_key: merchant.api_key
     });
 
