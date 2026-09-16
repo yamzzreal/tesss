@@ -59,8 +59,8 @@ export default async function handler(
       success: true,
       merchant: {
         id: merchant.id,
-        email: merchant.email,
         name: merchant.name,
+        email: merchant.email,
         api_key: merchant.api_key,
         qris_name: merchant.qris_name || '',
         qris_city: merchant.qris_city || '',
