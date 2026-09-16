@@ -45,4 +45,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (e) {
     if (!res.headersSent) res.status(500).json({ success: false, error: e instanceof Error ? e.message : 'Internal server error' });
   }
-}
+                                                }
