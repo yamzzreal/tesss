@@ -10,6 +10,7 @@ function createSession(userId: string) {
   }
 
   const payload = `${userId}.${Date.now()}`;
+
   const signature = crypto
     .createHmac('sha256', SESSION_SECRET)
     .update(payload)
@@ -30,43 +31,43 @@ export default async function handler(
   }
 
   try {
-    const { username, password } = req.body || {};
+    const { email, password } = req.body || {};
 
-    if (!username || !password) {
+    if (!email || !password) {
       return res.status(400).json({
         success: false,
-        error: 'Username dan password wajib diisi'
+        error: 'Email dan password wajib diisi'
       });
     }
 
     const result = await sql`
-      SELECT id, username, password
-      FROM customers
-      WHERE username = ${String(username).trim()}
+      SELECT *
+      FROM merchants
+      WHERE email = ${String(email).trim().toLowerCase()}
       LIMIT 1
     `;
 
     if (!result.rows.length) {
       return res.status(401).json({
         success: false,
-        error: 'Username atau password salah'
+        error: 'Email atau password salah'
       });
     }
 
-    const user = result.rows[0];
+    const merchant = result.rows[0];
 
     /*
-     * Pertahankan mekanisme password yang sudah dipakai project.
-     * Jika password kamu disimpan plaintext:
+     * Sesuaikan dengan sistem password project.
+     * Untuk sementara mengikuti format password yang tersimpan.
      */
-    if (String(user.password) !== String(password)) {
+    if (String(merchant.password) !== String(password)) {
       return res.status(401).json({
         success: false,
-        error: 'Username atau password salah'
+        error: 'Email atau password salah'
       });
     }
 
-    const session = createSession(String(user.id));
+    const session = createSession(String(merchant.id));
 
     res.setHeader(
       'Set-Cookie',
@@ -76,9 +77,9 @@ export default async function handler(
     return res.status(200).json({
       success: true,
       message: 'Login berhasil',
-      user: {
-        id: user.id,
-        username: user.username
+      merchant: {
+        id: merchant.id,
+        email: merchant.email
       }
     });
 
@@ -90,4 +91,4 @@ export default async function handler(
       error: 'Terjadi kesalahan server'
     });
   }
-  }
+}
