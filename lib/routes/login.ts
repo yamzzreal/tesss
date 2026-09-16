@@ -1,54 +1,43 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import crypto from 'crypto';
-import { sql } from '../db';
-
-const SESSION_SECRET = process.env.SESSION_SECRET;
-
-function createSession(userId: string) {
-  if (!SESSION_SECRET) {
-    throw new Error('SESSION_SECRET belum diset');
-  }
-
-  const payload = `${userId}.${Date.now()}`;
-
-  const signature = crypto
-    .createHmac('sha256', SESSION_SECRET)
-    .update(payload)
-    .digest('hex');
-
-  return Buffer.from(`${payload}.${signature}`).toString('base64url');
-}
+import {
+  sql,
+  json,
+  method,
+  sessionCookie,
+  verifyPassword
+} from '../db';
 
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({
-      success: false,
-      error: 'Method not allowed'
-    });
-  }
+  if (!method(req, res, ['POST'])) return;
 
   try {
-    const { email, password } = req.body || {};
+    const b = req.body || {};
+
+    const email = String(b.email || '')
+      .trim()
+      .toLowerCase();
+
+    const password = String(b.password || '');
 
     if (!email || !password) {
-      return res.status(400).json({
+      return json(res, 400, {
         success: false,
         error: 'Email dan password wajib diisi'
       });
     }
 
     const result = await sql`
-      SELECT *
+      SELECT id, email, name, password_hash, api_key
       FROM merchants
-      WHERE email = ${String(email).trim().toLowerCase()}
+      WHERE email = ${email}
       LIMIT 1
     `;
 
-    if (!result.rows.length) {
-      return res.status(401).json({
+    if (!result.rowCount) {
+      return json(res, 401, {
         success: false,
         error: 'Email atau password salah'
       });
@@ -56,39 +45,42 @@ export default async function handler(
 
     const merchant = result.rows[0];
 
-    /*
-     * Sesuaikan dengan sistem password project.
-     * Untuk sementara mengikuti format password yang tersimpan.
-     */
-    if (String(merchant.password) !== String(password)) {
-      return res.status(401).json({
+    const valid = await verifyPassword(
+      password,
+      merchant.password_hash
+    );
+
+    if (!valid) {
+      return json(res, 401, {
         success: false,
         error: 'Email atau password salah'
       });
     }
 
-    const session = createSession(String(merchant.id));
-
+    // Session merchant
     res.setHeader(
       'Set-Cookie',
-      `ymz_session=${session}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=604800`
+      sessionCookie(String(merchant.id), 'merchant')
     );
 
-    return res.status(200).json({
+    return json(res, 200, {
       success: true,
-      message: 'Login berhasil',
       merchant: {
         id: merchant.id,
+        name: merchant.name,
         email: merchant.email
-      }
+      },
+      api_key: merchant.api_key
     });
 
-  } catch (error) {
-    console.error('LOGIN ERROR:', error);
+  } catch (e) {
+    console.error('LOGIN ERROR:', e);
 
-    return res.status(500).json({
+    return json(res, 500, {
       success: false,
-      error: 'Terjadi kesalahan server'
+      error: e instanceof Error
+        ? e.message
+        : 'Login failed'
     });
   }
 }
