@@ -3,8 +3,7 @@ import {
   sql,
   compare,
   json,
-  method,
-  sessionCookie
+  method
 } from '../db';
 
 export default async function handler(
@@ -58,11 +57,11 @@ export default async function handler(
       });
     }
 
-    // Buat session merchant selama 7 hari
-    res.setHeader(
-      'Set-Cookie',
-      sessionCookie(String(merchant.id), 'merchant')
-    );
+    /*
+     * Tidak menggunakan session/cookie.
+     * Credential dikirim ke frontend dan disimpan
+     * oleh frontend menggunakan localStorage.
+     */
 
     return json(res, 200, {
       success: true,
