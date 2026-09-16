@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import {
   sql,
+  compare,
   json,
   method,
-  sessionCookie,
-  verifyPassword
+  sessionCookie
 } from '../db';
 
 export default async function handler(
@@ -45,19 +45,20 @@ export default async function handler(
 
     const merchant = result.rows[0];
 
-    const valid = await verifyPassword(
+    // Cocokkan password input dengan bcrypt hash
+    const validPassword = await compare(
       password,
       merchant.password_hash
     );
 
-    if (!valid) {
+    if (!validPassword) {
       return json(res, 401, {
         success: false,
         error: 'Email atau password salah'
       });
     }
 
-    // Session merchant
+    // Buat session merchant selama 7 hari
     res.setHeader(
       'Set-Cookie',
       sessionCookie(String(merchant.id), 'merchant')
