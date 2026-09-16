@@ -33,8 +33,15 @@ export default async function handler(
     }
 
     const result = await sql`
-      SELECT id, username, balance
-      FROM customers
+      SELECT
+        id,
+        email,
+        name,
+        api_key,
+        qris_name,
+        qris_city,
+        qris_payload
+      FROM merchants
       WHERE api_key = ${apiKey}
       LIMIT 1
     `;
@@ -46,19 +53,23 @@ export default async function handler(
       });
     }
 
-    const user = result.rows[0];
+    const merchant = result.rows[0];
 
     return res.status(200).json({
       success: true,
-      user: {
-        id: user.id,
-        username: user.username,
-        balance: user.balance
+      merchant: {
+        id: merchant.id,
+        email: merchant.email,
+        name: merchant.name,
+        api_key: merchant.api_key,
+        qris_name: merchant.qris_name || '',
+        qris_city: merchant.qris_city || '',
+        qris_payload: merchant.qris_payload || ''
       }
     });
 
   } catch (error) {
-    console.error('ME ERROR:', error);
+    console.error('MERCHANT ME ERROR:', error);
 
     return res.status(500).json({
       success: false,
