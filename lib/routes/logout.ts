@@ -1,0 +1,1 @@
+import type {VercelRequest,VercelResponse} from '@vercel/node';import {clearCookie,json,method} from '../db';export default function handler(req:VercelRequest,res:VercelResponse){if(!method(req,res,['POST']))return;res.setHeader('Set-Cookie',clearCookie('ymz_session'));json(res,200,{success:true})}
