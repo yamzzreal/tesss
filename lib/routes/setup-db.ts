@@ -83,16 +83,11 @@ export default async function handler(
     MIGRASI TRANSACTIONS
     =========================================================
 
-    Database lama kemungkinan hanya memiliki:
-      id
-      merchant_id
-      order_id
-      amount
-      status
-      created_at
+    Menambahkan kolom yang dibutuhkan oleh sistem
+    payment-create dan payment-status.
 
-    Versi payment terbaru membutuhkan beberapa field tambahan.
-    IF NOT EXISTS membuat migrasi aman dijalankan berkali-kali.
+    IF NOT EXISTS membuat migrasi aman dijalankan
+    berkali-kali tanpa menghapus data transaksi lama.
     */
 
 
@@ -128,6 +123,12 @@ export default async function handler(
 
     await sql`
       ALTER TABLE transactions
+      ADD COLUMN IF NOT EXISTS canceled_at TIMESTAMP NULL
+    `;
+
+
+    await sql`
+      ALTER TABLE transactions
       ADD COLUMN IF NOT EXISTS expired_at TIMESTAMP NULL
     `;
 
@@ -157,7 +158,7 @@ export default async function handler(
 
     /*
     =========================================================
-    INDEX
+    INDEX TRANSACTIONS
     =========================================================
     */
 
@@ -215,6 +216,8 @@ export default async function handler(
         'transactions.qr_url',
 
         'transactions.paid_at',
+
+        'transactions.canceled_at',
 
         'transactions.expired_at',
 
