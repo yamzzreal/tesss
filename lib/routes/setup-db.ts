@@ -7,6 +7,13 @@ export default async function handler(req:VercelRequest,res:VercelResponse){
   await sql`CREATE TABLE IF NOT EXISTS products (id TEXT PRIMARY KEY,merchant_id TEXT NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,name TEXT NOT NULL,description TEXT DEFAULT '',price BIGINT NOT NULL,active BOOLEAN NOT NULL DEFAULT TRUE,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
   await sql`CREATE TABLE IF NOT EXISTS transactions (id TEXT PRIMARY KEY,merchant_id TEXT NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,product_id TEXT REFERENCES products(id) ON DELETE SET NULL,order_id TEXT NOT NULL,amount BIGINT NOT NULL,qr_payload TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending',expires_at TIMESTAMPTZ NOT NULL,paid_at TIMESTAMPTZ,canceled_at TIMESTAMPTZ,customer_name TEXT,customer_email TEXT,metadata JSONB,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),UNIQUE(merchant_id,order_id))`;
   const alters=[
+   `ALTER TABLE merchants ADD COLUMN IF NOT EXISTS qris_payload TEXT`,
+   `ALTER TABLE merchants ADD COLUMN IF NOT EXISTS qris_name TEXT`,
+   `ALTER TABLE merchants ADD COLUMN IF NOT EXISTS qris_city TEXT`,
+   `ALTER TABLE merchants ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE`,
+   `ALTER TABLE products ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE`,
+   `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending'`,
+   `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ`,
    `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ`,
    `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS canceled_at TIMESTAMPTZ`,
    `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS customer_name TEXT`,
