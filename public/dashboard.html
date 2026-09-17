@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#090b10"><link rel="manifest" href="/manifest.json"><title>Dashboard — Yamzz Payment</title><link rel="stylesheet" href="/assets/app.css"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script><script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script><script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script></head>
+<body class="gateway-app">
+<header class="g-top"><a class="brand" href="/">YAMZZ <span>PAYMENT</span></a><div class="top-actions"><span id="topName">Merchant</span><button id="themeBtn" class="icon-btn" title="Tema">☼</button><button id="menuBtn" class="icon-btn mobile-only">☰</button></div></header>
+<div class="g-layout"><aside id="sidebar" class="g-sidebar"><div class="profile"><div class="avatar" id="avatar">Y</div><div><b id="sideName">Merchant</b><small id="sideEmail">-</small></div></div><nav>
+<div class="nav-group"><label>UTAMA</label><a data-page="dashboard" href="#dashboard">▦ <span>Dashboard</span></a><a data-page="qris" href="#qris">▧ <span>QRIS Saya</span></a><a data-page="payment" href="#payment">▱ <span>Payment Page</span></a></div>
+<div class="nav-group"><label>INTEGRASI</label><a data-page="keys" href="#keys">⚿ <span>API Key</span></a></div>
+<div class="nav-group"><label>AKTIVITAS</label><a data-page="invoices" href="#invoices">▣ <span>Riwayat Invoice</span></a><a data-page="download" href="#download">⇩ <span>Download App</span></a></div>
+<div class="nav-group"><label>DOKUMENTASI</label><a data-page="docs" href="#docs">▤ <span>Docs API</span></a></div>
+<div class="nav-group"><label>AKUN</label><a data-page="account" href="#account">♙ <span>Akun Saya</span></a><a data-page="status" href="#status">▯ <span>Status Aplikasi</span></a><a data-page="settings" href="#settings">⚙ <span>Pengaturan</span></a></div>
+</nav><button id="logout" class="logout">↪ Keluar</button></aside>
+<main id="main" class="g-main"></main></div>
+<div id="toast" class="toast"></div>
+<script src="/assets/dashboard.js"></script></body></html>

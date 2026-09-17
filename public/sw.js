@@ -1,0 +1,1 @@
+const CACHE='yamzz-pay-v3';self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(['/','/dashboard.html','/assets/app.css','/assets/dashboard.js','/manifest.json']))));self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;e.respondWith(fetch(e.request).catch(()=>caches.match(e.request)))});
