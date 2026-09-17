@@ -1,0 +1,16 @@
+{
+  "name": "yamzz-payment-gateway",
+  "version": "3.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vercel dev"
+  },
+  "dependencies": {
+    "@vercel/node": "latest",
+    "@vercel/postgres": "latest",
+    "bcryptjs": "latest"
+  },
+  "devDependencies": {
+    "typescript": "latest"
+  }
+}
