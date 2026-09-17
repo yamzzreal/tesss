@@ -12,6 +12,10 @@ export default async function handler(req:VercelRequest,res:VercelResponse){
   const orderId=String(b.order_id||id('ord')).trim();if(orderId.length<1||orderId.length>120)return json(res,400,{success:false,error:'order_id tidak valid'});
   const existing=await sql`SELECT id,order_id,amount,status,qr_payload,expires_at,created_at FROM transactions WHERE merchant_id=${m.id} AND order_id=${orderId} LIMIT 1`;
   if(existing.rowCount){const x=existing.rows[0];if(Number(x.amount)!==total)return json(res,409,{success:false,error:'order_id sudah pernah digunakan dengan nominal berbeda'});return json(res,200,{success:true,duplicate:true,transaction_id:x.id,order_id:x.order_id,amount:Number(x.amount),status:x.status,expires_at:x.expires_at,qr_string:x.qr_payload,payment_url:`/payment.html?transaction_id=${encodeURIComponent(x.id)}`})}
+  // Backward-compatible migration for databases created before customer fields were added.
+  await sql.query('ALTER TABLE transactions ADD COLUMN IF NOT EXISTS customer_name TEXT');
+  await sql.query('ALTER TABLE transactions ADD COLUMN IF NOT EXISTS customer_email TEXT');
+  await sql.query('ALTER TABLE transactions ADD COLUMN IF NOT EXISTS metadata JSONB');
   const productId=b.product_id?String(b.product_id):null;
   if(!m.qris_payload)return json(res,409,{success:false,error:'Merchant belum mengunggah QRIS statis'});
   if(productId){const p=await sql`SELECT id FROM products WHERE id=${productId} AND merchant_id=${m.id} LIMIT 1`;if(!p.rowCount)return json(res,400,{success:false,error:'product_id tidak ditemukan'})}
