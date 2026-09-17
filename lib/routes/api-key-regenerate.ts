@@ -1,0 +1,2 @@
+import type {VercelRequest,VercelResponse} from '@vercel/node';import {getSession,json,method,sql,apiKey} from '../db';
+export default async function handler(req:VercelRequest,res:VercelResponse){if(!method(req,res,['POST']))return;const s=getSession(req);if(!s||s.role!=='merchant')return json(res,401,{success:false,error:'Belum login'});try{const key=apiKey();await sql`UPDATE merchants SET api_key=${key} WHERE id=${s.userId}`;json(res,200,{success:true,api_key:key})}catch(e){json(res,500,{success:false,error:e instanceof Error?e.message:'API key failed'})}}
