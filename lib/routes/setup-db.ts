@@ -1,28 +1,251 @@
-import type {VercelRequest,VercelResponse} from '@vercel/node';
-import {json,method,sql} from '../db';
-export default async function handler(req:VercelRequest,res:VercelResponse){
- if(!method(req,res,['POST']))return;
- try{
-  await sql`CREATE TABLE IF NOT EXISTS merchants (id TEXT PRIMARY KEY,email TEXT UNIQUE NOT NULL,password_hash TEXT NOT NULL,name TEXT NOT NULL,api_key TEXT UNIQUE NOT NULL,qris_payload TEXT,qris_name TEXT,qris_city TEXT,active BOOLEAN NOT NULL DEFAULT TRUE,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
-  await sql`CREATE TABLE IF NOT EXISTS products (id TEXT PRIMARY KEY,merchant_id TEXT NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,name TEXT NOT NULL,description TEXT DEFAULT '',price BIGINT NOT NULL,active BOOLEAN NOT NULL DEFAULT TRUE,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
-  await sql`CREATE TABLE IF NOT EXISTS transactions (id TEXT PRIMARY KEY,merchant_id TEXT NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,product_id TEXT REFERENCES products(id) ON DELETE SET NULL,order_id TEXT NOT NULL,amount BIGINT NOT NULL,qr_payload TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending',expires_at TIMESTAMPTZ NOT NULL,paid_at TIMESTAMPTZ,canceled_at TIMESTAMPTZ,customer_name TEXT,customer_email TEXT,metadata JSONB,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),UNIQUE(merchant_id,order_id))`;
-  const alters=[
-   `ALTER TABLE merchants ADD COLUMN IF NOT EXISTS qris_payload TEXT`,
-   `ALTER TABLE merchants ADD COLUMN IF NOT EXISTS qris_name TEXT`,
-   `ALTER TABLE merchants ADD COLUMN IF NOT EXISTS qris_city TEXT`,
-   `ALTER TABLE merchants ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE`,
-   `ALTER TABLE products ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE`,
-   `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending'`,
-   `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ`,
-   `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ`,
-   `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS canceled_at TIMESTAMPTZ`,
-   `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS customer_name TEXT`,
-   `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS customer_email TEXT`,
-   `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS metadata JSONB`
-  ];
-  for(const q of alters) await sql.query(q);
-  await sql`CREATE INDEX IF NOT EXISTS tx_merchant_created ON transactions(merchant_id,created_at DESC)`;
-  await sql`CREATE INDEX IF NOT EXISTS tx_merchant_status ON transactions(merchant_id,status,created_at DESC)`;
-  json(res,200,{success:true,message:'Database siap dan migrasi selesai'});
- }catch(e){json(res,500,{success:false,error:e instanceof Error?e.message:'DB setup failed'})}
+import type {
+  VercelRequest,
+  VercelResponse
+} from '@vercel/node';
+
+import {
+  sql,
+  json,
+  method
+} from '../db';
+
+
+export default async function handler(
+  req: VercelRequest,
+  res: VercelResponse
+) {
+
+  if (!method(req, res, ['GET', 'POST'])) {
+    return;
+  }
+
+  try {
+
+    /*
+    =========================================================
+    MERCHANTS
+    =========================================================
+    */
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS merchants (
+        id TEXT PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        name TEXT NOT NULL,
+        api_key TEXT UNIQUE NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `;
+
+
+    /*
+    =========================================================
+    PRODUCTS
+    =========================================================
+    */
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS products (
+        id TEXT PRIMARY KEY,
+        merchant_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        price BIGINT NOT NULL DEFAULT 0,
+        image TEXT DEFAULT '',
+        category TEXT DEFAULT '',
+        status TEXT DEFAULT 'ready',
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `;
+
+
+    /*
+    =========================================================
+    TRANSACTIONS
+    =========================================================
+    */
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS transactions (
+        id TEXT PRIMARY KEY,
+        merchant_id TEXT NOT NULL,
+        order_id TEXT NOT NULL,
+        amount BIGINT NOT NULL DEFAULT 0,
+        status TEXT DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `;
+
+
+    /*
+    =========================================================
+    MIGRASI TRANSACTIONS
+    =========================================================
+
+    Database lama kemungkinan hanya memiliki:
+      id
+      merchant_id
+      order_id
+      amount
+      status
+      created_at
+
+    Versi payment terbaru membutuhkan beberapa field tambahan.
+    IF NOT EXISTS membuat migrasi aman dijalankan berkali-kali.
+    */
+
+
+    await sql`
+      ALTER TABLE transactions
+      ADD COLUMN IF NOT EXISTS customer_name TEXT DEFAULT ''
+    `;
+
+
+    await sql`
+      ALTER TABLE transactions
+      ADD COLUMN IF NOT EXISTS product_name TEXT DEFAULT ''
+    `;
+
+
+    await sql`
+      ALTER TABLE transactions
+      ADD COLUMN IF NOT EXISTS qr_payload TEXT DEFAULT ''
+    `;
+
+
+    await sql`
+      ALTER TABLE transactions
+      ADD COLUMN IF NOT EXISTS qr_url TEXT DEFAULT ''
+    `;
+
+
+    await sql`
+      ALTER TABLE transactions
+      ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP NULL
+    `;
+
+
+    await sql`
+      ALTER TABLE transactions
+      ADD COLUMN IF NOT EXISTS expired_at TIMESTAMP NULL
+    `;
+
+
+    await sql`
+      ALTER TABLE transactions
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()
+    `;
+
+
+    /*
+    =========================================================
+    QRIS
+    =========================================================
+    */
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS merchant_qris (
+        id TEXT PRIMARY KEY,
+        merchant_id TEXT NOT NULL,
+        qris_payload TEXT NOT NULL,
+        qris_image TEXT DEFAULT '',
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `;
+
+
+    /*
+    =========================================================
+    INDEX
+    =========================================================
+    */
+
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_transactions_merchant
+      ON transactions(merchant_id)
+    `;
+
+
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_transactions_order
+      ON transactions(order_id)
+    `;
+
+
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_transactions_status
+      ON transactions(status)
+    `;
+
+
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_transactions_created
+      ON transactions(created_at)
+    `;
+
+
+    /*
+    =========================================================
+    RESPONSE
+    =========================================================
+    */
+
+    return json(res, 200, {
+
+      success: true,
+
+      message:
+        'Database berhasil dibuat / dimigrasikan.',
+
+      migrations: [
+
+        'merchants',
+
+        'products',
+
+        'transactions',
+
+        'transactions.customer_name',
+
+        'transactions.product_name',
+
+        'transactions.qr_payload',
+
+        'transactions.qr_url',
+
+        'transactions.paid_at',
+
+        'transactions.expired_at',
+
+        'transactions.updated_at',
+
+        'merchant_qris'
+
+      ]
+
+    });
+
+
+  } catch (error) {
+
+    console.error(
+      'SETUP DB ERROR:',
+      error
+    );
+
+
+    return json(res, 500, {
+
+      success: false,
+
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Database setup failed'
+
+    });
+
+  }
+
 }
