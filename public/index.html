@@ -1,0 +1,33 @@
+<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Yamzz — QRIS Payment Gateway</title><link rel="stylesheet" href="/assets/app.css"></head><body><header class="topbar"><div class="container nav"><a class="logo" href="/">YAMZZ <span>PAYMENT</span></a><nav class="navlinks"><a href="#cara">Cara kerja</a><a href="#fitur">Fitur</a><a href="#api">API</a></nav><div class="actions" style="margin:0"><button class="theme-toggle" data-theme-toggle type="button">☾</button><a class="btn ghost" href="/login.html">Login</a><a class="btn pink" href="/register.html">Mulai gratis</a></div></div></header><main><section class="hero"><div class="container"><div class="eyebrow"><i class="dot"></i> QRIS PAYMENT INFRASTRUCTURE</div><h1>QRIS statis kamu,<br><span>jadi transaksi otomatis.</span></h1><p>Upload QRIS statis milik merchant, lalu Yamzz membantu membuat QR transaksi berdasarkan nominal. Dana pembayaran tetap menuju QRIS merchant.</p><div class="actions"><a class="btn pink" href="/register.html">Buat akun merchant →</a><a class="btn ghost" href="/login.html">Masuk dashboard</a></div><div class="hero-note">Yamzz tidak menampung dana merchant. Fitur status pembayaran otomatis membutuhkan sumber notifikasi/status transaksi yang sah dari sisi merchant atau penerbit QRIS.</div></div></section><section id="cara" class="section"><div class="container"><div class="section-title"><div class="eyebrow">CARA KERJA</div><h2>Empat langkah dari QRIS sampai transaksi.</h2><p>Alur dibuat sederhana untuk merchant yang ingin membawa QRIS mereka sendiri ke sistem pembayaran berbasis API.</p></div><div class="steps"><div class="step"><b>01</b><h3>Daftar merchant</h3><p>Buat akun dan dapatkan API key unik untuk toko kamu.</p></div><div class="step"><b>02</b><h3>Upload QRIS</h3><p>Masukkan QRIS statis aktif milik merchant.</p></div><div class="step"><b>03</b><h3>Generate transaksi</h3><p>Website kamu mengirim order ID dan nominal ke API Yamzz.</p></div><div class="step"><b>04</b><h3>Customer bayar</h3><p>QR transaksi ditampilkan dan pembayaran diarahkan ke QRIS merchant.</p></div></div></div></section><section id="fitur" class="section" style="background:#fff"><div class="container"><div class="section-title"><div class="eyebrow">FITUR</div><h2>Semua yang dibutuhkan merchant.</h2></div><div class="features"><div class="feature"><div class="icon">QR</div><h3>Merchant QRIS</h3><p>Setiap merchant menyimpan QRIS miliknya sendiri tanpa mencampur konfigurasi dengan merchant lain.</p></div><div class="feature"><div class="icon">API</div><h3>REST API</h3><p>Integrasikan pembayaran dari toko, marketplace, atau aplikasi kamu melalui endpoint sederhana.</p></div><div class="feature"><div class="icon">↗</div><h3>Status API</h3><p>Merchant dapat mengecek status transaksi melalui API secara aman menggunakan API key.</p></div><div class="feature"><div class="icon">⌁</div><h3>Dashboard</h3><p>Lihat produk, QRIS, API key, dan riwayat transaksi dari satu dashboard.</p></div><div class="feature"><div class="icon">$</div><h3>Dana langsung</h3><p>Gateway tidak dirancang sebagai dompet saldo merchant; pembayaran tetap diarahkan ke QRIS merchant.</p></div><div class="feature"><div class="icon">⚙</div><h3>Multi-merchant</h3><p>Setiap akun mempunyai konfigurasi QRIS dan API key yang terpisah.</p></div></div></div></section><section id="api" class="section"><div class="container"><div class="section-title"><div class="eyebrow">DEVELOPER</div><h2>Integrasi sekali, gunakan di banyak produk.</h2><p>API key sebaiknya digunakan di server/backend merchant, bukan ditanam di frontend publik.</p></div><div class="card api"><pre>POST /api/payment-create
+X-API-Key: YOUR_MERCHANT_API_KEY
+Content-Type: application/json
+
+{
+  "order_id": "ORDER-001",
+  "amount": 25000
+}</pre></div></div></section></main><footer class="footer"><div class="container">© 2026 Yamzz Payment · Merchant-owned QRIS infrastructure</div></footer><script>
+(function(){
+  const key='yamzz-theme';
+  const saved=localStorage.getItem(key);
+  if(saved==='light') document.body.classList.add('light');
+  function sync(){
+    const light=document.body.classList.contains('light');
+    document.querySelectorAll('[data-theme-toggle]').forEach(b=>{
+      b.textContent=light?'☀':'☾';
+      b.setAttribute('aria-label',light?'Aktifkan mode gelap':'Aktifkan mode terang');
+      b.title=light?'Mode terang':'Mode gelap';
+    });
+  }
+  window.toggleYamzzTheme=function(){
+    document.body.classList.toggle('light');
+    localStorage.setItem(key,document.body.classList.contains('light')?'light':'dark');
+    sync();
+  };
+  document.addEventListener('click',e=>{
+    const b=e.target.closest('[data-theme-toggle]');
+    if(b) toggleYamzzTheme();
+  });
+  document.addEventListener('DOMContentLoaded',sync);
+  sync();
+})();
+</script></body></html>

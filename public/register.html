@@ -1,0 +1,26 @@
+<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Daftar — Yamzz Payment</title><link rel="stylesheet" href="/assets/app.css"></head><body><main class="auth-wrap"><button class="theme-toggle auth-theme" data-theme-toggle type="button" style="position:fixed;right:20px;top:20px">☾</button><section class="card auth"><a class="logo" href="/">YAMZZ <span>PAYMENT</span></a><h1>Mulai sebagai merchant.</h1><p class="sub">Buat akun, upload QRIS sendiri, lalu hubungkan toko kamu dengan API Yamzz.</p><form id="f" class="form"><div class="field"><label>Nama bisnis</label><input name="name" placeholder="Contoh: Yamzz Store" required></div><div class="field"><label>Email</label><input name="email" type="email" placeholder="nama@email.com" required></div><div class="field"><label>Password</label><input name="password" type="password" minlength="8" placeholder="Minimal 8 karakter" required></div><button class="btn pink">Buat akun</button><div id="out" class="form-out"></div></form><div class="auth-foot">Sudah punya akun? <a href="/login.html">Masuk</a></div></section></main><script>const f=document.getElementById('f'),out=document.getElementById('out');f.onsubmit=async e=>{e.preventDefault();out.textContent='Membuat akun...';try{const r=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(new FormData(f)))});const d=await r.json();if(d.success){out.style.color='#168653';out.textContent='Akun berhasil dibuat.';setTimeout(()=>location='/dashboard.html',700)}else out.textContent=d.error||'Registrasi gagal';}catch(e){out.textContent='Terjadi kesalahan koneksi.'}}</script><script>
+(function(){
+  const key='yamzz-theme';
+  const saved=localStorage.getItem(key);
+  if(saved==='light') document.body.classList.add('light');
+  function sync(){
+    const light=document.body.classList.contains('light');
+    document.querySelectorAll('[data-theme-toggle]').forEach(b=>{
+      b.textContent=light?'☀':'☾';
+      b.setAttribute('aria-label',light?'Aktifkan mode gelap':'Aktifkan mode terang');
+      b.title=light?'Mode terang':'Mode gelap';
+    });
+  }
+  window.toggleYamzzTheme=function(){
+    document.body.classList.toggle('light');
+    localStorage.setItem(key,document.body.classList.contains('light')?'light':'dark');
+    sync();
+  };
+  document.addEventListener('click',e=>{
+    const b=e.target.closest('[data-theme-toggle]');
+    if(b) toggleYamzzTheme();
+  });
+  document.addEventListener('DOMContentLoaded',sync);
+  sync();
+})();
+</script></body></html>
